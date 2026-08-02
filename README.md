@@ -35,10 +35,9 @@ release yet. Do not use the repository on a production server.
 - `lego-vpn-helper`: narrow privileged system interface
 
 Read the [product requirements](docs/product-requirements.md),
-[architecture](docs/architecture.md), and [threat model](docs/threat-model.md)
-before contributing.
+[architecture](docs/architecture.md), [data model](docs/data-model.md), and
+[threat model](docs/threat-model.md) before contributing.
 
 ## License
 
 GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
-

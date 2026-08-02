@@ -27,3 +27,31 @@ jobs:
       - name: Build
         run: go build ./cmd/...
 
+  migrations:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: test
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply initial schema
+        run: psql -v ON_ERROR_STOP=1 -f migrations/000001_initial.up.sql
+      - name: Revert initial schema
+        run: psql -v ON_ERROR_STOP=1 -f migrations/000001_initial.down.sql
+      - name: Verify clean revert
+        run: test "$(psql -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")" = "0"
