@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+repo=steam9steam-prog/ez-vpn-lego
+state=/var/lib/ez-vpn-lego
+config=/etc/ez-vpn-lego
+releases=/usr/local/lib/ez-vpn-lego/releases
+
+if [[ -r $config/ezvpn.env ]]; then set -a; . "$config/ezvpn.env"; set +a; fi
+
+[[ ${EUID:-999} == 0 ]] || { echo 'run as root' >&2; exit 1; }
+mkdir -p /run/ez-vpn-lego "$state/backups"
+exec 9>/run/ez-vpn-lego/maintenance.lock
+flock -n 9 || { echo 'another maintenance operation is running' >&2; exit 1; }
+
+backup() {
+  local destination=${1:-$state/backups/ez-vpn-lego_$(date -u +%Y%m%dT%H%M%SZ).tar.gz}
+  local work archive
+  work=$(mktemp -d)
+  archive=$(realpath -m "$destination")
+  trap 'rm -rf -- "$work"' RETURN
+  systemctl stop lego-vpn-bot.service lego-vpnd.service
+  trap 'systemctl start lego-vpnd.service lego-vpn-bot.service; rm -rf -- "$work"' RETURN
+  runuser -u ezvpn -- pg_dump --format=custom --no-owner ezvpn > "$work/database.dump"
+  cp -a "$config" "$work/config"
+  if [[ -f /etc/xray/config.json ]]; then install -m 0600 /etc/xray/config.json "$work/xray-config.json"; fi
+  (cd "$work" && find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 sha256sum > MANIFEST.sha256)
+  tar --create --gzip --file "$archive.tmp" --directory "$work" --owner=0 --group=0 --numeric-owner .
+  chmod 0600 "$archive.tmp"
+  mv -f "$archive.tmp" "$archive"
+  systemctl start lego-vpnd.service lego-vpn-bot.service
+  trap - RETURN
+  rm -rf -- "$work"
+  echo "$archive"
+}
+
+restore() {
+  local archive=${1:?backup path is required} work entry
+  [[ -f $archive && ! -L $archive ]] || { echo 'backup must be a regular file' >&2; exit 1; }
+  work=$(mktemp -d)
+  trap 'rm -rf -- "$work"' RETURN
+  while IFS= read -r entry; do
+    case "$entry" in ./|./database.dump|./MANIFEST.sha256|./xray-config.json|./config|./config/*) ;;
+      *) echo "unsafe backup entry: $entry" >&2; exit 1 ;;
+    esac
+  done < <(tar -tzf "$archive")
+  tar --extract --gzip --file "$archive" --directory "$work" --no-same-owner --no-same-permissions
+  (cd "$work" && sha256sum --check --strict MANIFEST.sha256)
+  systemctl stop lego-vpn-bot.service lego-vpnd.service
+  runuser -u postgres -- dropdb --if-exists ezvpn_restore
+  runuser -u postgres -- dropdb --if-exists ezvpn_before_restore
+  runuser -u postgres -- createdb --owner=ezvpn ezvpn_restore
+  runuser -u ezvpn -- pg_restore --dbname=ezvpn_restore --no-owner < "$work/database.dump"
+  runuser -u postgres -- psql --set=ON_ERROR_STOP=1 --dbname=postgres <<'SQL'
+ALTER DATABASE ezvpn RENAME TO ezvpn_before_restore;
+ALTER DATABASE ezvpn_restore RENAME TO ezvpn;
+SQL
+  cp -a "$work/config/." "$config/"
+  chown -R root:ezvpn "$config"
+  chmod 0750 "$config" "$config/secrets"
+  chmod 0640 "$config/ezvpn.env" "$config/admin-id" "$config/secrets/"*
+  if [[ -f $work/xray-config.json ]]; then install -o root -g xray -m 0640 "$work/xray-config.json" /etc/xray/config.json; fi
+  systemctl start lego-vpn-helper.service lego-vpnd.service xray.service lego-vpn-bot.service
+  if ! timeout 30 bash -c 'until runuser -u ezvpn -- lego-vpnctl status >/dev/null 2>&1; do sleep 1; done'; then
+    systemctl stop lego-vpn-bot.service lego-vpnd.service
+    runuser -u postgres -- psql --set=ON_ERROR_STOP=1 --dbname=postgres <<'SQL'
+ALTER DATABASE ezvpn RENAME TO ezvpn_failed_restore;
+ALTER DATABASE ezvpn_before_restore RENAME TO ezvpn;
+DROP DATABASE ezvpn_failed_restore;
+SQL
+    systemctl start lego-vpnd.service lego-vpn-bot.service
+    echo 'restore health check failed; previous database restored' >&2
+    exit 1
+  fi
+  runuser -u postgres -- dropdb ezvpn_before_restore
+  trap - RETURN
+  rm -rf -- "$work"
+}
+
+update() {
+  local version=${1:-latest} arch base asset work previous release_dir
+  arch=$(dpkg --print-architecture)
+  [[ $arch == amd64 || $arch == arm64 ]] || { echo 'unsupported architecture' >&2; exit 1; }
+  if [[ $version == latest ]]; then
+    version=$(curl --fail --silent --show-error --proto '=https' --tlsv1.2 "https://api.github.com/repos/$repo/releases/latest" | jq -er .tag_name)
+  fi
+  [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo 'invalid version' >&2; exit 1; }
+  current_release=$(dirname "$(readlink -f /usr/local/lib/ez-vpn-lego/current)")
+  if [[ -f $current_release/VERSION ]] && [[ $(<"$current_release/VERSION") == "$version" ]]; then echo 'already up to date'; return; fi
+  work=$(mktemp -d); trap 'rm -rf -- "$work"' RETURN
+  base="https://github.com/$repo/releases/download/$version"; asset="ez-vpn-lego_${version}_linux_${arch}.tar.gz"
+  for file in "$asset" SHA256SUMS SHA256SUMS.sig; do curl --fail --location --proto '=https' --tlsv1.2 "$base/$file" --output "$work/$file"; done
+  openssl pkeyutl -verify -pubin -inkey "$current_release/release-public.pem" -rawin -in "$work/SHA256SUMS" -sigfile "$work/SHA256SUMS.sig" >/dev/null
+  (cd "$work" && grep "  $asset" SHA256SUMS | sha256sum --check --status)
+  backup "$state/backups/pre-update_$(date -u +%Y%m%dT%H%M%SZ).tar.gz" >/dev/null
+  release_dir="$releases/$version"; install -d -m 0755 "$release_dir"
+  tar --extract --gzip --file "$work/$asset" --directory "$release_dir" --no-same-owner
+  chmod -R a+rX "$release_dir"
+  previous=$(readlink -f /usr/local/lib/ez-vpn-lego/current)
+  ln -s "$release_dir/bin" /usr/local/lib/ez-vpn-lego/current.new
+  mv -Tf /usr/local/lib/ez-vpn-lego/current.new /usr/local/lib/ez-vpn-lego/current
+  systemctl daemon-reload
+  if ! systemctl restart lego-vpn-helper.service || ! systemctl restart lego-vpnd.service || ! systemctl restart xray.service lego-vpn-bot.service || ! timeout 30 bash -c 'until runuser -u ezvpn -- lego-vpnctl status >/dev/null 2>&1; do sleep 1; done'; then
+    ln -s "$previous" /usr/local/lib/ez-vpn-lego/current.new
+    mv -Tf /usr/local/lib/ez-vpn-lego/current.new /usr/local/lib/ez-vpn-lego/current
+    systemctl restart lego-vpn-helper.service
+    systemctl restart lego-vpnd.service xray.service lego-vpn-bot.service
+    echo 'update failed; binaries rolled back' >&2
+    exit 1
+  fi
+  trap - RETURN; rm -rf -- "$work"
+  echo "updated to $version"
+}
+
+case ${1:-} in
+  backup) shift; backup "${1:-}" ;;
+  restore) shift; restore "${1:-}" ;;
+  update) shift; update "${1:-latest}" ;;
+  *) echo 'usage: ez-vpn-lego-maintain {backup [PATH]|restore PATH|update [VERSION]}' >&2; exit 2 ;;
+esac

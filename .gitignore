@@ -3,6 +3,7 @@
 .env
 *.local
 bin/
+!/packaging/bin/
+!/packaging/bin/ez-vpn-lego-maintain
 coverage.out
 dist/
-
