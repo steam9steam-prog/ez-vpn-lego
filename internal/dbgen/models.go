@@ -24,6 +24,14 @@ type AdminIdentity struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type AdminPairingToken struct {
+	TokenHash  []byte             `json:"token_hash"`
+	AdminID    string             `json:"admin_id"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type AuditEvent struct {
 	Sequence     int64              `json:"sequence"`
 	ID           string             `json:"id"`
@@ -81,11 +89,12 @@ type Device struct {
 }
 
 type Node struct {
-	ID        string             `json:"id"`
-	Name      string             `json:"name"`
-	Status    string             `json:"status"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID            string             `json:"id"`
+	Name          string             `json:"name"`
+	Status        string             `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	PublicAddress string             `json:"public_address"`
 }
 
 type Operation struct {
@@ -115,6 +124,17 @@ type OutboxEvent struct {
 	PublishedAt   pgtype.Timestamptz `json:"published_at"`
 	Attempts      int32              `json:"attempts"`
 	LastError     pgtype.Text        `json:"last_error"`
+}
+
+type ProtocolInstance struct {
+	ID            string             `json:"id"`
+	NodeID        string             `json:"node_id"`
+	Driver        string             `json:"driver"`
+	SchemaVersion int32              `json:"schema_version"`
+	Status        string             `json:"status"`
+	Settings      []byte             `json:"settings"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Release struct {

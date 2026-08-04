@@ -1,6 +1,6 @@
 # Data model
 
-The initial PostgreSQL schema is defined in `migrations/000001_initial.up.sql`.
+The initial PostgreSQL schema is defined in `migrations/000001_initial.sql`.
 
 ## Identity
 
@@ -20,6 +20,7 @@ The initial PostgreSQL schema is defined in `migrations/000001_initial.up.sql`.
 ## Reconciliation
 
 - `nodes` represents managed data-plane nodes, including the local node.
+- `protocol_instances` stores encrypted, versioned driver settings for a node.
 - `config_revisions` stores immutable rendered configurations.
 - At most one revision per node is marked verified.
 
@@ -36,4 +37,3 @@ The initial PostgreSQL schema is defined in `migrations/000001_initial.up.sql`.
 
 Application IDs are UUIDs generated before insertion. Database timestamps use
 `timestamptz`. Physical deletion is not part of ordinary API operations.
-

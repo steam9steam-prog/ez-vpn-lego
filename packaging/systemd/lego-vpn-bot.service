@@ -1,0 +1,27 @@
+[Unit]
+Description=EZ VPN Lego Telegram adapter
+After=network-online.target lego-vpnd.service
+Wants=network-online.target
+Requires=lego-vpnd.service
+
+[Service]
+Type=simple
+User=ezvpn
+Group=ezvpn
+EnvironmentFile=/etc/ez-vpn-lego/ezvpn.env
+ExecStart=/usr/local/lib/ez-vpn-lego/current/lego-vpn-bot
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

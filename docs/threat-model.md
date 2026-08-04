@@ -24,6 +24,7 @@ Status: initial draft. Security claims must be backed by tests before release.
 | Stolen activation link | Random 256-bit token, hash at rest, short expiry, single use |
 | Stolen bot token | Root-readable secret file, redaction, rotation and owner recovery |
 | Unauthorized Telegram user | Explicit binding, RBAC, deny by default, audit record |
+| Adapter impersonates administrator | Adapter token is a privileged service credential; only official local adapters receive it, and asserted administrators must be active |
 | Command injection | No shell-string API; typed helper operations and strict validation |
 | Malicious release | Offline trust key, signature verification, pinned versions |
 | Broken update | Backup, staged switch, health check, bounded automatic rollback |
@@ -47,4 +48,3 @@ Status: initial draft. Security claims must be backed by tests before release.
 - Compromise of the owner's Telegram account or client device.
 - Protection from a malicious VPS provider.
 - Guaranteed censorship resistance on every network.
-

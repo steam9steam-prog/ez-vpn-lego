@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE admins (
     id uuid PRIMARY KEY,
     role text NOT NULL CHECK (role IN ('owner', 'operator', 'viewer')),
@@ -150,3 +151,16 @@ CREATE TABLE backups (
     verified_at timestamptz
 );
 
+-- +goose Down
+DROP TABLE backups;
+DROP TABLE releases;
+DROP TABLE outbox_events;
+DROP TABLE audit_events;
+DROP TABLE operations;
+DROP TABLE config_revisions;
+DROP TABLE credentials;
+DROP TABLE nodes;
+DROP TABLE devices;
+DROP TABLE users;
+DROP TABLE admin_identities;
+DROP TABLE admins;

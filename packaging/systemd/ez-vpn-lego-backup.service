@@ -1,0 +1,8 @@
+[Unit]
+Description=Create an EZ VPN Lego backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/ez-vpn-lego/current/ez-vpn-lego-maintain backup
+Nice=10
+IOSchedulingClass=idle

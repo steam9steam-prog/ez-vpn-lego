@@ -1,43 +1,92 @@
 # EZ VPN Lego
 
-EZ VPN Lego turns a clean VPS into a personal VPN managed through Telegram.
-The owner performs one installation, imports the generated bootstrap profile,
-and can then manage access without returning to the shell.
+Личный VPN на своём VPS без веб-панелей, домена и ручного редактирования
+конфигов. Один раз запускаете установщик, привязываете Telegram-бота и дальше
+создаёте доступы прямо в нём.
 
-## Project status
+Под капотом используется VLESS TCP REALITY с XTLS Vision. Xray отвечает только
+за трафик, а управление вынесено в отдельные небольшие сервисы на Go. Если бот
+или PostgreSQL временно недоступны, уже созданные подключения продолжают
+работать.
 
-Architecture and contracts are being established. There is no installable
-release yet. Do not use the repository on a production server.
+## Что уже есть
 
-## Product principles
+- установка на чистую Ubuntu Server 24.04 одной командой;
+- `amd64` и `arm64`;
+- Telegram-бот с одноразовой привязкой владельца;
+- создание отдельных ссылок для людей и устройств;
+- PostgreSQL вместо SQLite;
+- проверка нового конфига до перезапуска Xray и откат при ошибке;
+- ежедневные резервные копии;
+- подписанные обновления с автоматическим rollback;
+- systemd-сервисы без Docker и лишних открытых портов.
 
-- No domain required.
-- Telegram is the primary interface, not a public administration panel.
-- The VPN keeps working when Telegram or the control plane is unavailable.
-- Every configuration change is validated and reversible.
-- Releases are versioned, signed, tested, and explicitly installed.
-- Components communicate through documented, versioned contracts.
-- No billing, storefront, referral, or commercial subscription features.
+## Установка
 
-## Initial platform
+Сначала создайте бота через [@BotFather](https://t.me/BotFather). Затем
+подключитесь к свежему VPS с Ubuntu 24.04 и выполните:
 
-- Ubuntu Server 24.04 LTS (`amd64`, `arm64`)
-- VLESS over TCP with REALITY and XTLS Vision
-- Go control plane and adapters
-- PostgreSQL over a local Unix socket
-- systemd and nftables
+```bash
+curl -fsSL https://raw.githubusercontent.com/steam9steam-prog/ez-vpn-lego/main/install.sh | sudo bash
+```
 
-## Components
+Скрипт попросит токен бота — ввод не отображается и в историю команд токен не
+попадает. В конце появятся одноразовая ссылка и QR-код для привязки Telegram.
+Ссылка действует 15 минут.
 
-- `lego-vpnd`: desired state, API, operations, and reconciliation
-- `lego-vpnctl`: recovery and automation CLI
-- `lego-vpn-bot`: Telegram adapter
-- `lego-vpn-helper`: narrow privileged system interface
+Домен не нужен. По умолчанию VPN занимает TCP-порт `443`, поэтому он должен
+быть свободен и открыт в firewall вашего хостинга.
 
-Read the [product requirements](docs/product-requirements.md),
-[architecture](docs/architecture.md), [data model](docs/data-model.md), and
-[threat model](docs/threat-model.md) before contributing.
+## Обслуживание
 
-## License
+```bash
+# Проверить состояние
+sudo -u ezvpn lego-vpnctl status
 
-GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+# Сделать резервную копию
+sudo ez-vpn-lego backup
+
+# Установить свежую стабильную версию
+sudo ez-vpn-lego update
+
+# Восстановиться из копии
+sudo ez-vpn-lego restore /path/to/backup.tar.gz
+```
+
+В backup входят база, ключи и конфигурация Xray. Храните такой архив как пароль:
+лучше вынести его с VPS в зашифрованное хранилище.
+
+Подробнее про обновления, восстановление и диагностику написано в
+[инструкции по эксплуатации](docs/operations.md).
+
+## Как всё устроено
+
+- `lego-vpnd` хранит состояние и собирает конфигурацию;
+- `lego-vpn-bot` принимает команды из Telegram;
+- `lego-vpn-helper` выполняет только небольшой набор привилегированных действий;
+- `lego-vpnctl` нужен для диагностики и восстановления через SSH;
+- Xray обслуживает VPN-трафик и не зависит от работающего бота.
+
+Архитектура и границы компонентов описаны в [docs/architecture.md](docs/architecture.md),
+модель угроз — в [docs/threat-model.md](docs/threat-model.md), локальный API — в
+[api/openapi.yaml](api/openapi.yaml).
+
+## Разработка
+
+```bash
+make generate-check
+make fmt vet test-race build
+```
+
+Полный E2E-тест поднимает чистую Ubuntu 24.04 в KVM и прогоняет установку,
+Xray, PostgreSQL, backup и restore:
+
+```bash
+./tests/e2e/ubuntu-vm.sh
+```
+
+## Лицензия
+
+[GNU AGPL-3.0](LICENSE). Форкать, менять и собирать под себя можно; если
+публикуете изменённую версию как сетевой сервис, её исходники тоже должны
+оставаться доступными.

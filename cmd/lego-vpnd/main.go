@@ -1,11 +1,38 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/steam9steam-prog/ez-vpn-lego/internal/buildinfo"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/command"
+	"github.com/steam9steam-prog/ez-vpn-lego/internal/config"
+	"github.com/steam9steam-prog/ez-vpn-lego/internal/daemon"
 )
 
 func main() {
-	os.Exit(command.Run("lego-vpnd", os.Args[1:], os.Stdout))
+	if len(os.Args) == 2 && os.Args[1] == "version" {
+		os.Exit(command.Run("lego-vpnd", os.Args[1:], os.Stdout))
+	}
+	if len(os.Args) > 2 || (len(os.Args) == 2 && os.Args[1] != "serve") {
+		fmt.Fprintln(os.Stderr, "usage: lego-vpnd [serve|version]")
+		os.Exit(2)
+	}
+
+	configuration, err := config.LoadDaemon()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "lego-vpnd", "version", buildinfo.Version)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := daemon.Run(ctx, configuration, logger); err != nil {
+		logger.Error("daemon stopped with error", "error", err)
+		os.Exit(1)
+	}
 }

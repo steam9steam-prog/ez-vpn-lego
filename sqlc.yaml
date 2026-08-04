@@ -1,7 +1,7 @@
 version: "2"
 sql:
   - engine: postgresql
-    schema: migrations/000001_initial.up.sql
+    schema: migrations
     queries: db/queries
     gen:
       go:
@@ -14,4 +14,3 @@ sql:
         overrides:
           - db_type: uuid
             go_type: string
-

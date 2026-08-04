@@ -9,14 +9,40 @@ import (
 )
 
 type Querier interface {
+	ActivateCredential(ctx context.Context, id string) error
+	ActivateDevice(ctx context.Context, id string) error
+	ActivateNode(ctx context.Context, id string) error
+	ActivateProtocolInstances(ctx context.Context, nodeID string) error
 	CompleteOperation(ctx context.Context, arg CompleteOperationParams) (Operation, error)
+	ConsumeTelegramPairingToken(ctx context.Context, tokenHash []byte) (string, error)
+	CountAdmins(ctx context.Context) (int64, error)
+	CountNodes(ctx context.Context) (int64, error)
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
+	CreateConfigRevision(ctx context.Context, arg CreateConfigRevisionParams) error
+	CreateCredential(ctx context.Context, arg CreateCredentialParams) error
+	CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error)
+	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
 	CreateOperation(ctx context.Context, arg CreateOperationParams) (Operation, error)
 	CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) error
+	CreateOwner(ctx context.Context, id string) (Admin, error)
+	CreateProtocolInstance(ctx context.Context, arg CreateProtocolInstanceParams) error
+	CreateTelegramIdentity(ctx context.Context, arg CreateTelegramIdentityParams) error
+	CreateTelegramPairingToken(ctx context.Context, arg CreateTelegramPairingTokenParams) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	FailConfigRevision(ctx context.Context, id string) error
+	FailOperation(ctx context.Context, arg FailOperationParams) error
+	GetActiveAdmin(ctx context.Context, id string) (Admin, error)
+	GetActiveRealityInstance(ctx context.Context) (GetActiveRealityInstanceRow, error)
 	GetOperationByIdempotencyKey(ctx context.Context, arg GetOperationByIdempotencyKeyParams) (Operation, error)
 	GetUser(ctx context.Context, id string) (User, error)
+	ListActiveRealityCredentials(ctx context.Context, nodeID string) ([]ListActiveRealityCredentialsRow, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	LockOwnerBootstrap(ctx context.Context) error
+	LockVPNBootstrap(ctx context.Context) error
+	LockXrayReconcile(ctx context.Context) error
+	ResolveTelegramIdentity(ctx context.Context, subject string) (Admin, error)
+	SupersedeVerifiedRevisions(ctx context.Context, nodeID string) error
+	VerifyConfigRevision(ctx context.Context, id string) error
 }
 
 var _ Querier = (*Queries)(nil)

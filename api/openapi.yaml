@@ -17,9 +17,123 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /bootstrap/owner:
+    post:
+      operationId: bootstrapOwner
+      description: Creates the only owner when no administrator exists.
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Owner created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admin"
+        "409":
+          description: An administrator already exists
+  /bootstrap/vpn:
+    post:
+      operationId: bootstrapVPN
+      description: Creates the initial REALITY/Vision instance and owner access.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BootstrapVPN"
+      responses:
+        "201":
+          description: VPN instance created and validated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessResult"
+        "409":
+          description: VPN instance already exists
+  /access:
+    post:
+      operationId: createAccess
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUser"
+      responses:
+        "201":
+          description: Access created and active Xray configuration reconciled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessResult"
+  /auth/telegram/pairing:
+    post:
+      operationId: createTelegramPairing
+      description: Creates a single-use pairing token valid for 15 minutes.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
+      responses:
+        "201":
+          description: Pairing token created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairingToken"
+  /auth/telegram/claim:
+    post:
+      operationId: claimTelegramPairing
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, subject]
+              properties:
+                token: {type: string}
+                subject: {type: string}
+      responses:
+        "200":
+          description: Telegram identity bound to administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admin"
+  /auth/telegram/resolve:
+    get:
+      operationId: resolveTelegramIdentity
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: Active administrator identity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admin"
   /users:
     get:
       operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
       responses:
         "200":
           description: Users visible to the authenticated administrator
@@ -31,7 +145,10 @@ paths:
                   $ref: "#/components/schemas/User"
     post:
       operationId: createUser
+      security:
+        - bearerAuth: []
       parameters:
+        - $ref: "#/components/parameters/AdminID"
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
@@ -40,31 +157,31 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateUser"
       responses:
-        "202":
-          description: User creation accepted
+        "201":
+          description: User created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OperationAccepted"
-  /operations/{operationId}:
-    parameters:
-      - name: operationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      operationId: getOperation
-      responses:
+                $ref: "#/components/schemas/UserCreation"
         "200":
-          description: Current operation state
+          description: Idempotent replay of an existing result
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Operation"
+                $ref: "#/components/schemas/UserCreation"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   parameters:
+    AdminID:
+      name: X-Admin-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -74,6 +191,26 @@ components:
         minLength: 16
         maxLength: 128
   schemas:
+    Admin:
+      type: object
+      additionalProperties: false
+      required: [id, role, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [owner, operator, viewer]
+        status:
+          type: string
+          enum: [active, disabled]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Health:
       type: object
       additionalProperties: false
@@ -100,6 +237,9 @@ components:
         created_at:
           type: string
           format: date-time
+        updated_at:
+          type: string
+          format: date-time
     CreateUser:
       type: object
       additionalProperties: false
@@ -109,35 +249,40 @@ components:
           type: string
           minLength: 1
           maxLength: 80
-    OperationAccepted:
+    UserCreation:
       type: object
       additionalProperties: false
-      required: [operation_id, status]
+      required: [operation_id, user, replayed]
       properties:
         operation_id:
           type: string
           format: uuid
-        status:
-          const: queued
-    Operation:
+        user:
+          $ref: "#/components/schemas/User"
+        replayed:
+          type: boolean
+    BootstrapVPN:
       type: object
       additionalProperties: false
-      required: [id, kind, status, created_at, updated_at]
+      required: [public_address, port, target, server_name]
       properties:
-        id:
-          type: string
-          format: uuid
-        kind:
-          type: string
-        status:
-          type: string
-          enum: [queued, running, succeeded, failed, rolling_back, rolled_back]
-        error_code:
-          type: [string, "null"]
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
+        public_address: {type: string}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        target: {type: string}
+        server_name: {type: string}
+    AccessResult:
+      type: object
+      additionalProperties: false
+      required: [operation_id, user_id, device_id, uri]
+      properties:
+        operation_id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        device_id: {type: string, format: uuid}
+        uri: {type: string}
+    PairingToken:
+      type: object
+      additionalProperties: false
+      required: [token, expires_at]
+      properties:
+        token: {type: string}
+        expires_at: {type: string, format: date-time}

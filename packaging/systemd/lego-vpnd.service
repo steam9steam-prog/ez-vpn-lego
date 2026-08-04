@@ -1,0 +1,27 @@
+[Unit]
+Description=EZ VPN Lego control plane
+After=postgresql.service lego-vpn-helper.service
+Requires=lego-vpn-helper.service
+
+[Service]
+Type=simple
+User=ezvpn
+Group=ezvpn
+EnvironmentFile=/etc/ez-vpn-lego/ezvpn.env
+ExecStart=/usr/local/lib/ez-vpn-lego/current/lego-vpnd serve
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/ez-vpn-lego /var/lib/ez-vpn-lego
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

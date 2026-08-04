@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main]
@@ -27,10 +28,14 @@ jobs:
         run: test -z "$(gofmt -l .)"
       - name: Vet
         run: go vet ./...
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
       - name: Build
         run: go build ./cmd/...
+      - name: Shell syntax
+        run: bash -n install.sh scripts/*.sh packaging/bin/*
 
   migrations:
     runs-on: ubuntu-24.04
@@ -59,13 +64,15 @@ jobs:
           go-version: '1.26.5'
           check-latest: true
           cache: true
-      - name: Apply initial schema
-        run: psql -v ON_ERROR_STOP=1 -f migrations/000001_initial.up.sql
+      - name: Database migration integration tests
+        run: go test -race ./internal/migrate -v
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres?sslmode=disable
       - name: PostgreSQL adapter integration tests
         run: go test -race ./adapters/postgres -v
         env:
           TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres?sslmode=disable
-      - name: Revert initial schema
-        run: psql -v ON_ERROR_STOP=1 -f migrations/000001_initial.down.sql
-      - name: Verify clean revert
-        run: test "$(psql -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")" = "0"
+      - name: Daemon integration tests
+        run: go test -race ./internal/daemon -v
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres?sslmode=disable

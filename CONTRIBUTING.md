@@ -1,16 +1,23 @@
-# Contributing
+# Как помочь проекту
 
-The project is in architecture bootstrap. Discuss changes to public APIs,
-database schemas, driver contracts, privilege boundaries, and release behavior
-before implementation.
+Баг-репорты, идеи и pull request'ы приветствуются. Перед большой переделкой
+лучше сначала открыть issue и коротко описать задачу — так меньше шансов сделать
+работу, которая конфликтует с уже запланированными изменениями.
 
-All changes must:
+Несколько правил:
 
-- keep the data plane independent of the control plane;
-- avoid generic privileged command execution;
-- include tests for behavior and failure paths;
-- include a migration and rollback analysis when state changes;
-- update relevant architecture documentation.
+- не добавляйте выполнение произвольных команд от root;
+- изменение Xray-конфига не должно обрывать уже работающий VPN при ошибке;
+- изменения схемы PostgreSQL оформляются отдельной миграцией;
+- новое поведение и аварийные сценарии нужно покрывать тестами;
+- токены, VLESS-ссылки, ключи и реальные backup-файлы нельзя прикладывать к issue.
 
-Run `make fmt vet test build` before opening a pull request.
+Перед pull request запустите:
 
+```bash
+make generate-check
+make fmt vet test-race build
+```
+
+Для изменений установщика или systemd-файлов нужен полный прогон
+`tests/e2e/ubuntu-vm.sh` на Linux-машине с KVM.

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/steam9steam-prog/ez-vpn-lego/core/ports"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/id"
 )
 
@@ -21,6 +22,9 @@ func TestCreateUserIsAtomicAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+	if _, err := pool.Exec(ctx, `TRUNCATE outbox_events, audit_events, operations, credentials, devices, users, admin_identities, admins CASCADE`); err != nil {
+		t.Fatal(err)
+	}
 
 	adminID, err := id.NewUUID()
 	if err != nil {
@@ -34,7 +38,7 @@ func TestCreateUserIsAtomicAndIdempotent(t *testing.T) {
 	})
 
 	repository := NewUserRepository(pool)
-	request := CreateUserRequest{
+	request := ports.CreateUserRequest{
 		AdminID:        adminID,
 		Name:           "Alice",
 		IdempotencyKey: "test-create-user-0001",
@@ -53,7 +57,7 @@ func TestCreateUserIsAtomicAndIdempotent(t *testing.T) {
 
 	conflicting := request
 	conflicting.Name = "Bob"
-	if _, err := repository.Create(ctx, conflicting); !errors.Is(err, ErrIdempotencyConflict) {
+	if _, err := repository.Create(ctx, conflicting); !errors.Is(err, ports.ErrIdempotencyConflict) {
 		t.Fatalf("expected idempotency conflict, got %v", err)
 	}
 
