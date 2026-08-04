@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+trap 'status=$?; echo "::error title=Release build failed::line ${BASH_LINENO[0]}: ${BASH_COMMAND}"; exit "$status"' ERR
 
 version=${VERSION:?VERSION is required}
 goarch=${GOARCH:?GOARCH is required}
@@ -23,10 +24,10 @@ for command in lego-vpnd lego-vpnctl lego-vpn-bot lego-vpn-helper; do
 done
 
 xray_zip="$stage/xray.zip"
-curl --fail --location --proto '=https' --tlsv1.2 \
+curl --fail --location --retry 5 --retry-all-errors --connect-timeout 15 --proto '=https' --tlsv1.2 \
   "https://github.com/XTLS/Xray-core/releases/download/${xray_version}/Xray-linux-${xray_arch}.zip" \
   --output "$xray_zip"
-curl --fail --location --proto '=https' --tlsv1.2 \
+curl --fail --location --retry 5 --retry-all-errors --connect-timeout 15 --proto '=https' --tlsv1.2 \
   "https://github.com/XTLS/Xray-core/releases/download/${xray_version}/Xray-linux-${xray_arch}.zip.dgst" \
   --output "$stage/xray.zip.dgst"
 expected=$(awk '$1 == "SHA2-256=" {print $2}' "$stage/xray.zip.dgst")
