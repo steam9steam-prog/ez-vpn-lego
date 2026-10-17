@@ -1,12 +1,53 @@
 openapi: 3.1.0
 info:
   title: EZ VPN Lego Control API
-  version: 0.1.0-draft
+  version: 0.2.0-preview
   description: Local control-plane contract used by official adapters.
 servers:
   - url: http://localhost/v1
     description: HTTP transported over the local Unix socket
 paths:
+  /profiles:
+    get:
+      operationId: listProfiles
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
+      responses:
+        "200":
+          description: Available profiles. No reachability guarantee for a country or operator.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Profile"
+        "401":
+          description: Valid adapter token and administrator identity required
+  /topology/plan:
+    post:
+      operationId: planTopology
+      description: Validates an installation and builds a plan. Does not save state or apply changes.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/AdminID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Installation"
+      responses:
+        "200":
+          description: Read-only installation plan, without credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopologyPlan"
+        "400":
+          description: Invalid topology, unknown profile, missing domain, port conflict or unavailable backend
+        "401":
+          description: Valid adapter token and administrator identity required
   /health:
     get:
       operationId: getHealth
@@ -191,6 +232,101 @@ components:
         minLength: 16
         maxLength: 128
   schemas:
+    Installation:
+      type: object
+      additionalProperties: false
+      required: [schema_version, nodes, routes]
+      properties:
+        schema_version: {type: integer, const: 1}
+        nodes:
+          type: array
+          minItems: 1
+          items: {$ref: "#/components/schemas/TopologyNode"}
+        routes:
+          type: array
+          items: {$ref: "#/components/schemas/TopologyRoute"}
+    TopologyNode:
+      type: object
+      additionalProperties: false
+      required: [id, name, address, roles, owner]
+      properties:
+        id: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$'}
+        name: {type: string, minLength: 1, maxLength: 80}
+        address: {type: string, description: Public IP address or lowercase DNS name, without a port}
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, enum: [control, entry, exit]}
+        owner: {type: string, enum: [lego, remnawave, marzban]}
+        country: {type: string, description: Optional display metadata, not a routing restriction}
+        relay_port: {type: integer, minimum: 0, maximum: 65535, default: 10443, description: Zero or omitted uses port 10443}
+        reality_target: {type: string, description: Optional host and port, paired with reality_server_name}
+        reality_server_name: {type: string}
+    TopologyRoute:
+      type: object
+      additionalProperties: false
+      required: [id, name, entry_id, profile, port]
+      properties:
+        id: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$'}
+        name: {type: string, minLength: 1, maxLength: 80}
+        entry_id: {type: string}
+        exit_id: {type: string, description: Omit for a direct route. Must differ from entry_id.}
+        profile: {type: string}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        domain: {type: string, description: Required for a profile using ordinary TLS}
+    TopologyPlan:
+      type: object
+      additionalProperties: false
+      required: [schema_version, control_node_id, nodes, domains, warnings]
+      properties:
+        schema_version: {type: integer, const: 1}
+        control_node_id: {type: string}
+        nodes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [node, routes, relay]
+            properties:
+              node: {$ref: "#/components/schemas/TopologyNode"}
+              routes:
+                type: array
+                items: {$ref: "#/components/schemas/TopologyRoute"}
+              relay: {type: boolean}
+        domains:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, node_id, address, purpose]
+            properties:
+              name: {type: string}
+              node_id: {type: string}
+              address: {type: string}
+              purpose: {type: string, const: vpn-tls}
+        warnings:
+          type: array
+          items: {type: string}
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [id, name, engine, transport, security, needs_domain, clients, status, evidence, sources]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        engine: {type: string}
+        transport: {type: string}
+        security: {type: string}
+        needs_domain: {type: boolean}
+        clients:
+          type: array
+          items: {type: string}
+        status: {type: string, enum: [implemented, experimental, deprecated]}
+        evidence: {type: string}
+        sources:
+          type: array
+          items: {type: string, format: uri}
     Admin:
       type: object
       additionalProperties: false

@@ -13,7 +13,10 @@ import (
 
 	"github.com/steam9steam-prog/ez-vpn-lego/core/domain"
 	"github.com/steam9steam-prog/ez-vpn-lego/core/ports"
+	"github.com/steam9steam-prog/ez-vpn-lego/core/topology"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/buildinfo"
+	"github.com/steam9steam-prog/ez-vpn-lego/profiles"
+	"github.com/steam9steam-prog/ez-vpn-lego/services/planner"
 )
 
 const maxRequestBody = 64 << 10
@@ -54,7 +57,26 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/access", s.authenticateAdmin(http.HandlerFunc(s.createAccess)))
 	mux.Handle("GET /v1/users", s.authenticateAdmin(http.HandlerFunc(s.listUsers)))
 	mux.Handle("POST /v1/users", s.authenticateAdmin(http.HandlerFunc(s.createUser)))
+	mux.Handle("GET /v1/profiles", s.authenticateAdmin(http.HandlerFunc(s.listProfiles)))
+	mux.Handle("POST /v1/topology/plan", s.authenticateAdmin(http.HandlerFunc(s.planTopology)))
 	return s.recoverPanic(mux)
+}
+
+func (s *Server) listProfiles(response http.ResponseWriter, request *http.Request) {
+	writeJSON(response, http.StatusOK, profiles.Catalog())
+}
+
+func (s *Server) planTopology(response http.ResponseWriter, request *http.Request) {
+	var installation topology.Installation
+	if err := decodeJSONWithLimit(response, request, &installation, 16<<20); err != nil {
+		return
+	}
+	plan, err := planner.Build(installation)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_topology", err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, plan)
 }
 
 func (s *Server) createTelegramPairing(response http.ResponseWriter, request *http.Request) {
@@ -274,7 +296,11 @@ func (s *Server) recoverPanic(next http.Handler) http.Handler {
 }
 
 func decodeJSON(response http.ResponseWriter, request *http.Request, target any) error {
-	request.Body = http.MaxBytesReader(response, request.Body, maxRequestBody)
+	return decodeJSONWithLimit(response, request, target, maxRequestBody)
+}
+
+func decodeJSONWithLimit(response http.ResponseWriter, request *http.Request, target any, limit int64) error {
+	request.Body = http.MaxBytesReader(response, request.Body, limit)
 	decoder := json.NewDecoder(request.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {

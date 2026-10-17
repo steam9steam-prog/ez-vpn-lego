@@ -12,7 +12,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/steam9steam-prog/ez-vpn-lego/core/topology"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/config"
+	"github.com/steam9steam-prog/ez-vpn-lego/profiles"
+	"github.com/steam9steam-prog/ez-vpn-lego/services/planner"
 )
 
 type Client struct {
@@ -95,6 +98,22 @@ func (c *Client) WithAdmin(adminID string) *Client {
 func (c *Client) Health(ctx context.Context) (Health, error) {
 	var result Health
 	err := c.do(ctx, http.MethodGet, "/v1/health", nil, "", false, &result)
+	return result, err
+}
+
+func (c *Client) Profiles(ctx context.Context) ([]profiles.Profile, error) {
+	var result []profiles.Profile
+	err := c.do(ctx, http.MethodGet, "/v1/profiles", nil, "", true, &result)
+	return result, err
+}
+
+func (c *Client) PlanTopology(ctx context.Context, installation topology.Installation) (planner.Plan, error) {
+	payload, err := json.Marshal(installation)
+	if err != nil {
+		return planner.Plan{}, err
+	}
+	var result planner.Plan
+	err = c.do(ctx, http.MethodPost, "/v1/topology/plan", payload, "", true, &result)
 	return result, err
 }
 
@@ -202,7 +221,7 @@ func (c *Client) do(
 		_ = json.NewDecoder(io.LimitReader(response.Body, 64<<10)).Decode(apiError)
 		return apiError
 	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(response.Body, 16<<20)).Decode(result); err != nil {
 		return fmt.Errorf("decode control API response: %w", err)
 	}
 	return nil

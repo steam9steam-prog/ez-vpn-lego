@@ -1,6 +1,9 @@
 # Architecture
 
-Status: draft for review.
+Status: the single-node runtime is implemented. The modular topology model is
+accepted in [ADR-0004](adr/0004-modular-topology.md). Its offline planner and
+renderer exist; authenticated remote agents and fleet reconciliation are not
+implemented yet. See [implementation status](product-requirements.md).
 
 ## Context
 

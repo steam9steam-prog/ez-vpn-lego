@@ -37,13 +37,14 @@ unzip -q "$xray_zip" xray -d "$stage/bin"
 
 cp -a packaging/systemd "$stage/"
 cp -a packaging/tmpfiles "$stage/"
+cp -a docs "$stage/"
 install -m 0755 packaging/bin/ez-vpn-lego-maintain "$stage/bin/ez-vpn-lego-maintain"
 cp packaging/release-public.pem "$stage/"
-cp LICENSE README.md "$stage/"
+cp LICENSE README.md README.en.md README.zh-CN.md "$stage/"
 printf '%s\n' "$version" > "$stage/VERSION"
 
 archive="$output/ez-vpn-lego_${version}_linux_${goarch}.tar.gz"
 tar --create --gzip --file "$archive" --directory "$stage" \
   --owner=0 --group=0 --numeric-owner \
-  VERSION LICENSE README.md release-public.pem bin systemd tmpfiles
+  VERSION LICENSE README.md README.en.md README.zh-CN.md release-public.pem bin systemd tmpfiles docs
 sha256sum "$archive" | sed "s#  .*/#  #" > "$archive.sha256"

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {"id": "entry", "name": "Entry", "address": "192.0.2.10", "roles": ["control", "entry"], "owner": "lego"},
+    {"id": "uk", "name": "UK", "address": "2001:db8::20", "roles": ["exit"], "owner": "lego", "country": "GB"},
+    {"id": "us", "name": "USA", "address": "2001:db8::30", "roles": ["exit"], "owner": "lego", "country": "US"},
+    {"id": "ca", "name": "Canada", "address": "2001:db8::40", "roles": ["exit"], "owner": "lego", "country": "CA"}
+  ],
+  "routes": [
+    {"id": "uk", "name": "UK", "entry_id": "entry", "exit_id": "uk", "profile": "vless-reality-vision", "port": 443},
+    {"id": "us", "name": "USA", "entry_id": "entry", "exit_id": "us", "profile": "vless-reality-vision", "port": 443},
+    {"id": "ca", "name": "Canada", "entry_id": "entry", "exit_id": "ca", "profile": "vless-reality-vision", "port": 443}
+  ]
+}

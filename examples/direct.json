@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "id": "main",
+      "name": "My VPN",
+      "address": "192.0.2.10",
+      "roles": ["control", "entry"],
+      "owner": "lego"
+    }
+  ],
+  "routes": [
+    {
+      "id": "direct",
+      "name": "Direct",
+      "entry_id": "main",
+      "profile": "vless-reality-vision",
+      "port": 443
+    }
+  ]
+}
