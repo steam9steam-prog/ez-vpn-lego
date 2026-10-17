@@ -12,6 +12,7 @@ import (
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/command"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/config"
 	"github.com/steam9steam-prog/ez-vpn-lego/internal/id"
+	"github.com/steam9steam-prog/ez-vpn-lego/internal/topologycmd"
 )
 
 func main() {
@@ -19,6 +20,9 @@ func main() {
 }
 
 func run(arguments []string) int {
+	if len(arguments) > 0 && (arguments[0] == "topology" || arguments[0] == "profiles") {
+		return topologycmd.Run(arguments, os.Stdout, os.Stderr)
+	}
 	if len(arguments) == 1 && arguments[0] == "version" {
 		return command.Run("lego-vpnctl", arguments, os.Stdout)
 	}
@@ -102,5 +106,8 @@ func usage() {
   lego-vpnctl vpn bootstrap PUBLIC_ADDRESS TARGET SERVER_NAME
   lego-vpnctl users list
   lego-vpnctl users create NAME
+  lego-vpnctl profiles list
+  lego-vpnctl topology plan INSTALLATION.json
+  lego-vpnctl topology render INSTALLATION.json STATE.json OUTPUT_DIRECTORY
   lego-vpnctl version`)
 }

@@ -7,3 +7,4 @@ bin/
 !/packaging/bin/ez-vpn-lego-maintain
 coverage.out
 dist/
+/workbench/

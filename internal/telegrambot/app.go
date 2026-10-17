@@ -45,6 +45,10 @@ func (a *App) handleMessage(ctx context.Context, b *bot.Bot, update *models.Upda
 		a.send(ctx, b, update.Message.Chat.ID, "Этот Telegram ещё не привязан. Откройте одноразовую ссылку, показанную установщиком.", nil)
 		return
 	}
+	if text == "/profiles" {
+		a.showProfiles(ctx, b, update.Message.Chat.ID, admin.ID)
+		return
+	}
 	if text == "/new" || a.takeWaiting(update.Message.Chat.ID) {
 		if text == "/new" {
 			a.setWaiting(update.Message.Chat.ID)
@@ -81,7 +85,8 @@ func (a *App) handleCallback(ctx context.Context, b *bot.Bot, update *models.Upd
 	_ = a.answer(ctx, b, update.CallbackQuery.ID)
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	subject := strconv.FormatInt(update.CallbackQuery.From.ID, 10)
-	if _, err := a.client.ResolveTelegram(ctx, subject); err != nil {
+	admin, err := a.client.ResolveTelegram(ctx, subject)
+	if err != nil {
 		a.send(ctx, b, chatID, "Доступ запрещён.", nil)
 		return
 	}
@@ -98,7 +103,33 @@ func (a *App) handleCallback(ctx context.Context, b *bot.Bot, update *models.Upd
 		a.menu(ctx, b, chatID, fmt.Sprintf("Сервер работает · версия %s", health.Version))
 	case "menu:home":
 		a.menu(ctx, b, chatID, "Управление вашим VPN")
+	case "menu:profiles":
+		a.showProfiles(ctx, b, chatID, admin.ID)
 	}
+}
+
+func (a *App) showProfiles(ctx context.Context, b *bot.Bot, chatID int64, adminID string) {
+	items, err := a.client.WithAdmin(adminID).Profiles(ctx)
+	if err != nil {
+		a.send(ctx, b, chatID, "Не удалось загрузить каталог профилей.", homeKeyboard())
+		return
+	}
+	var text strings.Builder
+	text.WriteString("Профили для новой модульной установки\n\n")
+	for _, item := range items {
+		text.WriteString(item.Name)
+		if item.Status == "experimental" {
+			text.WriteString(" (экспериментальный)")
+		}
+		if item.NeedsDomain {
+			text.WriteString("\nНужен свой домен и сертификат.")
+		} else {
+			text.WriteString("\nДомен не обязателен.")
+		}
+		text.WriteString("\n\n")
+	}
+	text.WriteString("Каталог не меняет работающий VPN. Многосерверная установка пока готовится через lego-vpnctl topology. Доступность проверяется из сети пользователя.")
+	a.send(ctx, b, chatID, text.String(), homeKeyboard())
 }
 
 func (a *App) createAccess(ctx context.Context, b *bot.Bot, chatID int64, adminID, name string) {
@@ -125,6 +156,8 @@ func (a *App) menu(ctx context.Context, b *bot.Bot, chatID int64, text string) {
 		{Text: "➕ Новый доступ", CallbackData: "menu:new"},
 	}, {
 		{Text: "🟢 Статус", CallbackData: "menu:status"},
+	}, {
+		{Text: "Профили подключения", CallbackData: "menu:profiles"},
 	}}})
 }
 

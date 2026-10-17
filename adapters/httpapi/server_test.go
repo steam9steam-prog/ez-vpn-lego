@@ -103,3 +103,34 @@ func TestCreateUser(t *testing.T) {
 		t.Fatalf("operation ID: got %q", body.OperationID)
 	}
 }
+
+func TestTopologyPlanIsAuthenticatedAndReadOnly(t *testing.T) {
+	server := New(&fakeUsers{}, fakeAdmins{}, fakeVPN{}, fakeAccess{}, fakeHealth{}, strings.Repeat("a", 32))
+	body := `{"schema_version":1,"nodes":[{"id":"main","name":"Main","address":"192.0.2.1","roles":["control","entry"],"owner":"lego"}],"routes":[{"id":"direct","name":"Direct","entry_id":"main","profile":"vless-reality-vision","port":443}]}`
+	for _, test := range []struct {
+		name, body    string
+		authenticated bool
+		expected      int
+	}{
+		{"unauthenticated", body, false, http.StatusUnauthorized},
+		{"valid plan", body, true, http.StatusOK},
+		{"unsupported fields", strings.TrimSuffix(body, "}") + `,"hops":[]}`, true, http.StatusBadRequest},
+		{"unknown profile", strings.ReplaceAll(body, "vless-reality-vision", "unknown"), true, http.StatusBadRequest},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/v1/topology/plan", strings.NewReader(test.body))
+			if test.authenticated {
+				request.Header.Set("Authorization", "Bearer "+strings.Repeat("a", 32))
+				request.Header.Set("X-Admin-ID", "admin-id")
+			}
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, request)
+			if response.Code != test.expected {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if strings.Contains(response.Body.String(), "private_key") {
+				t.Fatal("plan leaked private material")
+			}
+		})
+	}
+}

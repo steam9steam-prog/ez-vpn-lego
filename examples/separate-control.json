@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {"id": "control", "name": "Control", "address": "192.0.2.1", "roles": ["control"], "owner": "lego"},
+    {"id": "entry", "name": "Entry", "address": "192.0.2.10", "roles": ["entry"], "owner": "lego"},
+    {"id": "exit", "name": "Exit", "address": "2001:db8::20", "roles": ["exit"], "owner": "lego"}
+  ],
+  "routes": [
+    {"id": "direct", "name": "Direct", "entry_id": "entry", "profile": "vless-reality-vision", "port": 443},
+    {"id": "cascade", "name": "Via exit", "entry_id": "entry", "exit_id": "exit", "profile": "vless-reality-vision", "port": 443}
+  ]
+}
